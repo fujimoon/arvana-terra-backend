@@ -1,0 +1,800 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// Enums
+// ============================================================
+
+enum UserRole {
+  landlord
+  homeowner
+  employer
+  admin
+  super_admin
+}
+
+enum LandStatus {
+  active
+  for_sale
+  sold
+}
+
+enum PropertyStatus {
+  active
+  for_sale
+  sold
+  under_renovation
+}
+
+enum BuildingType {
+  apartment
+  house
+  commercial
+  warehouse
+  other
+}
+
+enum RoomType {
+  studio
+  one_k        @map("1K")
+  one_ldk      @map("1LDK")
+  two_ldk      @map("2LDK")
+  three_ldk    @map("3LDK")
+  four_ldk     @map("4LDK")
+  office
+  shop
+  other
+}
+
+enum RoomStatus {
+  occupied
+  vacant
+  maintenance
+}
+
+enum PaymentStatus {
+  current
+  late
+  defaulted
+}
+
+enum PaymentRecordStatus {
+  paid
+  pending
+  late
+  overdue
+}
+
+enum TenantPaymentStatus {
+  current
+  late
+  defaulted
+}
+
+enum EquipmentCategory {
+  lighting
+  door
+  hvac
+  plumbing
+  electrical
+  elevator
+  camera
+  other
+}
+
+enum EquipmentStatus {
+  good
+  warning
+  broken
+  replaced
+}
+
+enum DeviceType {
+  water_meter
+  electric_meter
+  camera
+  sensor
+}
+
+enum CameraStatus {
+  active
+  inactive
+  error
+}
+
+enum ContractType {
+  nda
+  rental
+  purchase
+  management
+  other
+}
+
+enum ContractStatus {
+  draft
+  active
+  expired
+  terminated
+}
+
+enum ChatRoomType {
+  property
+  land
+  employee
+  direct
+}
+
+enum ChatParticipantRole {
+  owner
+  member
+}
+
+enum MessageType {
+  text
+  image
+  file
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  done
+  cancelled
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+  urgent
+}
+
+enum ContractEmployeeType {
+  full_time
+  part_time
+  contract
+  freelance
+}
+
+enum VendorCategory {
+  glass
+  electric
+  plumbing
+  construction
+  cleaning
+  security
+  other
+}
+
+enum OpportunityType {
+  land_purchase
+  sale
+  rental
+  development
+  other
+}
+
+enum SnsPostType {
+  general
+  advice
+  knowledge
+  event
+  case_study
+  official
+  tax_advice
+  vendor_info
+  announcement
+}
+
+// ============================================================
+// User & Auth
+// ============================================================
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  password        String
+  name            String
+  role            UserRole
+  phone           String?
+  address         String?
+  profileImageUrl String?
+  bio             String?   @db.Text
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  refreshTokens     RefreshToken[]
+  lands             Land[]
+  properties        Property[]
+  chatRooms         ChatRoom[]        @relation("ChatRoomCreator")
+  chatParticipants  ChatParticipant[]
+  sentMessages      ChatMessage[]     @relation("MessageSender")
+  tasks             Task[]            @relation("TaskOwner")
+  assignedTasks     Task[]            @relation("TaskAssignee")
+  employees         Employee[]
+  opportunities     BusinessOpportunity[]
+  valuations        AssetValuation[]
+  snsPosts          SnsPost[]
+  snsLikes          SnsLike[]
+  snsComments       SnsComment[]
+  notifications     Notification[]
+  preference        UserPreference?
+  connectedVendors  UserVendor[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+// ============================================================
+// Land (土地)
+// ============================================================
+
+model Land {
+  id            String     @id @default(uuid())
+  ownerId       String
+  owner         User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name          String
+  address       String
+  area          Float
+  zoning        String?
+  description   String?    @db.Text
+  status        LandStatus @default(active)
+  isPublic      Boolean    @default(false)
+  thumbnailUrl  String?
+  imageUrls     String[]   @default([])
+  purchasePrice Float?
+  currentValue  Float?
+  purchaseDate  DateTime?
+  notes         String?    @db.Text
+  tags          String[]   @default([])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  properties  Property[]
+  contracts   Contract[]
+  chatRooms   ChatRoom[]
+  tasks       Task[]
+
+  @@map("lands")
+}
+
+// ============================================================
+// Property (物件・建物)
+// ============================================================
+
+model Property {
+  id            String         @id @default(uuid())
+  ownerId       String
+  owner         User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  landId        String?
+  land          Land?          @relation(fields: [landId], references: [id], onDelete: SetNull)
+  name          String
+  address       String
+  buildingType  BuildingType
+  floors        Int?
+  totalRooms    Int?
+  builtYear     Int?
+  area          Float
+  description   String?        @db.Text
+  status        PropertyStatus @default(active)
+  isPublic      Boolean        @default(false)
+  thumbnailUrl  String?
+  imageUrls     String[]       @default([])
+  purchasePrice Float?
+  currentValue  Float?
+  purchaseDate  DateTime?
+  notes         String?        @db.Text
+  tags          String[]       @default([])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  rooms        Room[]
+  equipment    Equipment[]
+  smartDevices SmartDeviceData[]
+  contracts    Contract[]
+  chatRooms    ChatRoom[]
+  tasks        Task[]
+  payments     Payment[]
+
+  @@map("properties")
+}
+
+// ============================================================
+// Room (部屋)
+// ============================================================
+
+model Room {
+  id          String     @id @default(uuid())
+  propertyId  String
+  property    Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomNumber  String
+  floor       Int?
+  type        RoomType
+  area        Float?
+  rentPrice   Float?
+  status      RoomStatus @default(vacant)
+  notes       String?    @db.Text
+  memo        String?    @db.Text
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  tenant    Tenant?
+  payments  Payment[]
+  equipment Equipment[]
+  smartDevices SmartDeviceData[]
+
+  @@map("rooms")
+}
+
+// ============================================================
+// Tenant (入居者)
+// ============================================================
+
+model Tenant {
+  id              String              @id @default(uuid())
+  roomId          String              @unique
+  room            Room                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  propertyId      String
+  name            String
+  email           String?
+  phone           String?
+  moveInDate      DateTime
+  moveOutDate     DateTime?
+  contractEndDate DateTime?
+  rentAmount      Float
+  depositAmount   Float?
+  paymentStatus   TenantPaymentStatus @default(current)
+  notes           String?             @db.Text
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  payments Payment[]
+
+  @@map("tenants")
+}
+
+// ============================================================
+// Payment (入金情報)
+// ============================================================
+
+model Payment {
+  id         String              @id @default(uuid())
+  tenantId   String?
+  tenant     Tenant?             @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  roomId     String
+  room       Room                @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  propertyId String
+  property   Property            @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  amount     Float
+  dueDate    DateTime
+  paidDate   DateTime?
+  status     PaymentRecordStatus @default(pending)
+  notes      String?             @db.Text
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@map("payments")
+}
+
+// ============================================================
+// Equipment (設備)
+// ============================================================
+
+model Equipment {
+  id                  String            @id @default(uuid())
+  propertyId          String
+  property            Property          @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId              String?
+  room                Room?             @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  name                String
+  category            EquipmentCategory
+  floor               Int?
+  location            String?
+  manufacturer        String?
+  model               String?
+  serialNumber        String?
+  installDate         DateTime?
+  warrantyExpiry      DateTime?
+  status              EquipmentStatus   @default(good)
+  lastInspectionDate  DateTime?
+  nextInspectionDate  DateTime?
+  repairCostEstimate  Float?
+  notes               String?           @db.Text
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@map("equipment")
+}
+
+// ============================================================
+// SmartDeviceData (スマート機器データ)
+// ============================================================
+
+model SmartDeviceData {
+  id           String       @id @default(uuid())
+  propertyId   String
+  property     Property     @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  roomId       String?
+  room         Room?        @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  deviceType   DeviceType
+  deviceId     String
+  location     String?
+  readings     Json         @default("[]")
+  cameraStatus CameraStatus?
+  lastUpdated  DateTime     @default(now())
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("smart_device_data")
+}
+
+// ============================================================
+// Contract (NDA・契約書)
+// ============================================================
+
+model Contract {
+  id         String         @id @default(uuid())
+  propertyId String?
+  property   Property?      @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  landId     String?
+  land       Land?          @relation(fields: [landId], references: [id], onDelete: SetNull)
+  type       ContractType
+  title      String
+  content    String         @db.Text
+  templateId String?
+  template   ContractTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  parties    Json           @default("[]")
+  signedDate DateTime?
+  expiryDate DateTime?
+  status     ContractStatus @default(draft)
+  fileUrl    String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@map("contracts")
+}
+
+// ============================================================
+// ContractTemplate (契約書雛形)
+// ============================================================
+
+model ContractTemplate {
+  id         String       @id @default(uuid())
+  type       ContractType
+  title      String
+  content    String       @db.Text
+  createdBy  String
+  isOfficial Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  contracts Contract[]
+
+  @@map("contract_templates")
+}
+
+// ============================================================
+// ChatRoom (チャットルーム)
+// ============================================================
+
+model ChatRoom {
+  id          String       @id @default(uuid())
+  type        ChatRoomType
+  propertyId  String?
+  property    Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  landId      String?
+  land        Land?        @relation(fields: [landId], references: [id], onDelete: SetNull)
+  name        String
+  topic       String?
+  description String?      @db.Text
+  createdBy   String
+  creator     User         @relation("ChatRoomCreator", fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  participants ChatParticipant[]
+  messages     ChatMessage[]
+
+  @@map("chat_rooms")
+}
+
+// ============================================================
+// ChatParticipant (チャット参加者)
+// ============================================================
+
+model ChatParticipant {
+  id         String              @id @default(uuid())
+  chatRoomId String
+  chatRoom   ChatRoom            @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       ChatParticipantRole @default(member)
+  joinedAt   DateTime            @default(now())
+
+  @@unique([chatRoomId, userId])
+  @@map("chat_participants")
+}
+
+// ============================================================
+// ChatMessage (チャットメッセージ)
+// ============================================================
+
+model ChatMessage {
+  id          String      @id @default(uuid())
+  chatRoomId  String
+  chatRoom    ChatRoom    @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  senderId    String
+  sender      User        @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  content     String      @db.Text
+  messageType MessageType @default(text)
+  fileUrl     String?
+  readBy      String[]    @default([])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("chat_messages")
+}
+
+// ============================================================
+// Task (業務タスク)
+// ============================================================
+
+model Task {
+  id           String       @id @default(uuid())
+  propertyId   String?
+  property     Property?    @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  landId       String?
+  land         Land?        @relation(fields: [landId], references: [id], onDelete: SetNull)
+  ownerId      String
+  owner        User         @relation("TaskOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?      @db.Text
+  status       TaskStatus   @default(todo)
+  priority     TaskPriority @default(medium)
+  assignedTo   String?
+  assignee     User?        @relation("TaskAssignee", fields: [assignedTo], references: [id], onDelete: SetNull)
+  dueDate      DateTime?
+  isAiSuggested Boolean    @default(false)
+  aiReason     String?      @db.Text
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("tasks")
+}
+
+// ============================================================
+// Employee (被雇用者)
+// ============================================================
+
+model Employee {
+  id           String    @id @default(uuid())
+  ownerId      String
+  owner        User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name         String
+  email        String?
+  phone        String?
+  address      String?
+  mynumber     String?
+  role         String?
+  department   String?
+  hireDate     DateTime?
+  contractType String?
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("employees")
+}
+
+// ============================================================
+// Vendor (業者)
+// ============================================================
+
+model Vendor {
+  id           String         @id @default(uuid())
+  name         String
+  category     VendorCategory
+  contactName  String?
+  email        String?
+  phone        String?
+  address      String?
+  description  String?        @db.Text
+  website      String?
+  serviceAreas String[]       @default([])
+  rating       Float?
+  isApproved   Boolean        @default(false)
+  registeredBy String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  connectedUsers UserVendor[]
+
+  @@map("vendors")
+}
+
+// ============================================================
+// UserVendor (地主・家主と業者の連携)
+// ============================================================
+
+model UserVendor {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vendorId    String
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  notes       String?  @db.Text
+  connectedAt DateTime @default(now())
+
+  @@unique([userId, vendorId])
+  @@map("user_vendors")
+}
+
+// ============================================================
+// BusinessOpportunity (ビジネスチャンス)
+// ============================================================
+
+model BusinessOpportunity {
+  id             String          @id @default(uuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?         @db.Text
+  type           OpportunityType
+  location       String?
+  region         String?
+  estimatedValue Float?
+  source         String?
+  aiAnalysis     String?         @db.Text
+  isBookmarked   Boolean         @default(false)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("business_opportunities")
+}
+
+// ============================================================
+// AssetValuation (資産価値)
+// ============================================================
+
+model AssetValuation {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  landIds           String[] @default([])
+  propertyIds       String[] @default([])
+  totalCurrentValue Float?
+  aiPredictedValue  Float?
+  predictionYear    Int?
+  breakdown         Json?
+  aiAnalysis        String?  @db.Text
+  calculatedAt      DateTime @default(now())
+
+  @@map("asset_valuations")
+}
+
+// ============================================================
+// SnsPost (SNS投稿)
+// ============================================================
+
+model SnsPost {
+  id        String      @id @default(uuid())
+  authorId  String
+  author    User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  type      SnsPostType @default(general)
+  title     String
+  content   String      @db.Text
+  tags      String[]    @default([])
+  imageUrls String[]    @default([])
+  viewCount Int         @default(0)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  likes    SnsLike[]
+  comments SnsComment[]
+  event    SnsEvent?
+
+  @@map("sns_posts")
+}
+
+// ============================================================
+// SnsLike
+// ============================================================
+
+model SnsLike {
+  id        String   @id @default(uuid())
+  postId    String
+  post      SnsPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+  @@map("sns_likes")
+}
+
+// ============================================================
+// SnsComment
+// ============================================================
+
+model SnsComment {
+  id        String   @id @default(uuid())
+  postId    String
+  post      SnsPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sns_comments")
+}
+
+// ============================================================
+// SnsEvent (イベント)
+// ============================================================
+
+model SnsEvent {
+  id               String   @id @default(uuid())
+  postId           String   @unique
+  post             SnsPost  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  eventDate        DateTime
+  location         String?
+  maxParticipants  Int?
+  registeredUsers  String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("sns_events")
+}
+
+// ============================================================
+// UserPreference (ユーザ設定)
+// ============================================================
+
+model UserPreference {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  preferredRegions     String[] @default([])
+  notificationSettings Json     @default("{}")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("user_preferences")
+}
+
+// ============================================================
+// Notification (通知)
+// ============================================================
+
+model Notification {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  content     String   @db.Text
+  isRead      Boolean  @default(false)
+  relatedId   String?
+  relatedType String?
+  createdAt   DateTime @default(now())
+
+  @@map("notifications")
+}
