@@ -55,38 +55,6 @@ router.delete('/tenants/:id', authenticate, async (req, res) => {
   }
 });
 
-// Family members
-// POST /api/v1/tenants/:tenantId/family-members
-router.post('/tenants/:tenantId/family-members', authenticate, async (req, res) => {
-  try {
-    const member = await tenantService.addFamilyMember(req.params.tenantId, req.body);
-    res.status(201).json({ member });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// PUT /api/v1/family-members/:id
-router.put('/family-members/:id', authenticate, async (req, res) => {
-  try {
-    const member = await tenantService.updateFamilyMember(req.params.id, req.body);
-    res.json({ member });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// DELETE /api/v1/family-members/:id
-router.delete('/family-members/:id', authenticate, async (req, res) => {
-  try {
-    await tenantService.deleteFamilyMember(req.params.id);
-    res.json({ success: true });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Payments
 // POST /api/v1/tenants/:tenantId/payments
 router.post('/tenants/:tenantId/payments', authenticate, async (req, res) => {
   try {
@@ -109,10 +77,10 @@ router.patch('/payments/:id/status', authenticate, async (req, res) => {
   }
 });
 
-// GET /api/v1/tenants/overdue
-router.get('/tenants/overdue', authenticate, async (req, res) => {
+// GET /api/v1/tenants/late
+router.get('/tenants/late', authenticate, async (req, res) => {
   try {
-    const tenants = await tenantService.getOverdueTenants(req.query.propertyId as string | undefined);
+    const tenants = await tenantService.getLateTenants(req.query.propertyId as string | undefined);
     res.json({ tenants });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

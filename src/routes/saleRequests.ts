@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
 import { requireAdmin, requireLandlordOrHomeowner } from '../middleware/rbac';
 import { saleRequestService } from '../services/saleRequest.service';
-import { upload } from '../middleware/upload';
+import { uploadMultiple } from '../middleware/upload';
 
 const router = Router();
 
@@ -17,7 +17,7 @@ const saleRequestSchema = z.object({
 });
 
 // Owner: submit sale listing request
-router.post('/', authenticate, requireLandlordOrHomeowner, upload.array('images', 10), async (req: Request, res: Response, next: NextFunction) => {
+router.post('/', authenticate, requireLandlordOrHomeowner, uploadMultiple, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const data = saleRequestSchema.parse({
       ...req.body,

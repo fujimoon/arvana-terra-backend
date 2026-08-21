@@ -5,7 +5,7 @@ import { encrypt, decrypt } from '../utils/crypto';
 export class EmployeeService {
   async getEmployees(ownerId: string) {
     const employees = await prisma.employee.findMany({
-      where: { ownerId, isActive: true },
+      where: { ownerId },
       orderBy: { name: 'asc' }
     });
     // Return with decrypted mynumber (masked by default in service - frontend decides display)
@@ -59,11 +59,7 @@ export class EmployeeService {
     hireDate: Date;
     contractType: string;
     mynumber: string;
-    mynumberVerified: boolean;
-    mynumberCardFrontUrl: string;
-    mynumberCardBackUrl: string;
     notes: string;
-    isActive: boolean;
   }>) {
     const existing = await prisma.employee.findFirst({ where: { id, ownerId } });
     if (!existing) throw new AppError('被雇用者が見つかりません', 404);
@@ -79,8 +75,7 @@ export class EmployeeService {
   async deleteEmployee(id: string, ownerId: string) {
     const existing = await prisma.employee.findFirst({ where: { id, ownerId } });
     if (!existing) throw new AppError('被雇用者が見つかりません', 404);
-    // Soft delete
-    return prisma.employee.update({ where: { id }, data: { isActive: false } });
+    return prisma.employee.delete({ where: { id } });
   }
 }
 

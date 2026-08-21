@@ -2,7 +2,16 @@ import { OpenAI } from 'openai';
 import { prisma } from '../lib/prisma';
 import { logger } from '../lib/logger';
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!openai) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY is not configured');
+    }
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+}
 
 export class AIService {
   async suggestTasks(userId: string, context: {
@@ -54,7 +63,7 @@ export class AIService {
 
     const contextText = contextParts.join('\n\n');
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
@@ -114,7 +123,7 @@ export class AIService {
       }).join('\n')}`,
     ].join('\n\n');
 
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
@@ -159,7 +168,7 @@ export class AIService {
     location?: string;
     estimatedValue?: number;
   }): Promise<string> {
-    const completion = await openai.chat.completions.create({
+    const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o',
       messages: [
         {
