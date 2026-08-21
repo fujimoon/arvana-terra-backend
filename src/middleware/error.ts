@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { ZodError } from 'zod';
+import { logger } from '../lib/logger';
 
 export class AppError extends Error {
   public statusCode: number;
@@ -9,37 +9,32 @@ export class AppError extends Error {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = true;
-    Object.setPrototypeOf(this, AppError.prototype);
+    Error.captureStackTrace(this, this.constructor);
   }
 }
 
-export function errorHandler(
+export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  next: NextFunction
-): void {
-  if (err instanceof ZodError) {
-    res.status(400).json({
-      success: false,
-      error: 'Validation error',
-      details: err.errors
-    });
-    return;
-  }
-
+  _next: NextFunction
+): void => {
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       success: false,
-      error: err.message
+      error: err.message,
     });
     return;
   }
 
-  console.error('Unhandled error:', err);
+  logger.error('Unhandled error:', { error: err.message, stack: err.stack, path: req.path });
   res.status(500).json({
     success: false,
-    error: 'Internal server error'
+    error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
   });
-}
+};
+
+export const notFoundHandler = (req: Request, res: Response): void => {
+  res.status(404).json({ success: false, error: `Route ${req.path} not found` });
+};

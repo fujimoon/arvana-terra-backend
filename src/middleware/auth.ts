@@ -1,32 +1,31 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { AppError } from './error';
+import { AuthenticatedRequest, AuthPayload } from '../types';
+import { UserRole } from '@prisma/client';
 
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: string;
-  };
-}
-
-export function authenticate(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): void {
+export const authenticate = (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(new AppError('認証が必要です', 401));
+    res.status(401).json({ success: false, error: 'Authentication required' });
+    return;
   }
 
   const token = authHeader.split(' ')[1];
   try {
-    const secret = process.env.JWT_SECRET || 'default_secret';
-    const decoded = jwt.verify(token, secret) as { id: string; email: string; role: string };
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as AuthPayload;
     req.user = decoded;
     next();
   } catch {
-    next(new AppError('無効なトークンです', 401));
+    res.status(401).json({ success: false, error: 'Invalid or expired token' });
   }
-}
+};
+
+export const authorize = (...roles: UserRole[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      res.status(403).json({ success: false, error: 'Insufficient permissions' });
+      return;
+    }
+    next();
+  };
+};

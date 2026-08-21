@@ -1,89 +1,98 @@
-import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { Router, Response } from 'express';
+import { z } from 'zod';
 import { chatService } from '../services/chat.service';
-import { getIO } from '../socket/instance';
+import { authenticate } from '../middleware/auth';
+import { asyncHandler } from '../utils/asyncHandler';
+import { AuthenticatedRequest } from '../types';
+import { AppError } from '../middleware/error';
 
 const router = Router();
 
-// チャットルーム一覧
-// GET /chats?type=land&targetId=land-001
-router.get('/', authenticate, async (req, res, next) => {
-  try {
-    const { type, targetId } = req.query as { type: string; targetId: string };
-    if (!type || !targetId) {
-      return res.status(400).json({ success: false, message: 'type and targetId are required' });
-    }
-    const rooms = await chatService.getRooms((req as any).user.id, type, targetId);
-    res.json({ success: true, data: rooms });
-  } catch (err) {
-    next(err);
-  }
+router.get(
+  '/',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const chatRooms = await chatService.getMyChatRooms(req.user!.userId);
+    res.json({ success: true, data: chatRooms });
+  })
+);
+
+router.get(
+  '/:id',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const chatRoom = await chatService.getChatRoomById(req.params.id, req.user!.userId);
+    res.json({ success: true, data: chatRoom });
+  })
+);
+
+const createChatSchema = z.object({
+  type: z.enum(['property', 'land', 'employee', 'direct']),
+  name: z.string().min(1),
+  topic: z.string().optional(),
+  description: z.string().optional(),
+  propertyId: z.string().optional(),
+  landId: z.string().optional(),
+  participantIds: z.array(z.string()).optional(),
 });
 
-// チャットルーム作成
-// POST /chats
-router.post('/', authenticate, async (req, res, next) => {
-  try {
-    const { type, title, description, landId, propertyId, employeeId } = req.body;
-    const room = await chatService.createRoom({
-      type,
-      title,
-      description,
-      landId,
-      propertyId,
-      employeeId,
-      createdById: (req as any).user.id,
+router.post(
+  '/',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = createChatSchema.safeParse(req.body);
+    if (!parsed.success) throw new AppError(parsed.error.errors[0].message, 400);
+
+    const chatRoom = await chatService.createChatRoom(req.user!.userId, parsed.data);
+    res.status(201).json({ success: true, data: chatRoom });
+  })
+);
+
+router.get(
+  '/:id/messages',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const result = await chatService.getMessages(req.params.id, req.user!.userId, req.query as Record<string, string>);
+    res.json({ success: true, ...result });
+  })
+);
+
+router.post(
+  '/:id/messages',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const schema = z.object({
+      content: z.string().min(1),
+      messageType: z.enum(['text', 'image', 'file']).optional(),
+      fileUrl: z.string().optional(),
     });
-    res.status(201).json({ success: true, data: room });
-  } catch (err) {
-    next(err);
-  }
-});
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) throw new AppError(parsed.error.errors[0].message, 400);
 
-// ルーム詳細
-// GET /chats/:id
-router.get('/:id', authenticate, async (req, res, next) => {
-  try {
-    const room = await chatService.getRoom(req.params.id);
-    if (!room) return res.status(404).json({ success: false, message: 'Chat room not found' });
-    res.json({ success: true, data: room });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// メッセージ一覧
-// GET /chats/:id/messages?page=1&limit=50
-router.get('/:id/messages', authenticate, async (req, res, next) => {
-  try {
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
-    const result = await chatService.getMessages(req.params.id, page, limit);
-    res.json({ success: true, data: result });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// メッセージ送信（HTTP fallback）
-// POST /chats/:id/messages
-router.post('/:id/messages', authenticate, async (req, res, next) => {
-  try {
-    const { content } = req.body;
-    const message = await chatService.sendMessage(
-      req.params.id,
-      (req as any).user.id,
-      content
-    );
-    // Socket.io でブロードキャスト
-    const io = getIO();
-    if (io) {
-      io.of('/chat').to(`room:${req.params.id}`).emit('new_message', message);
-    }
+    const message = await chatService.sendMessage(req.params.id, req.user!.userId, parsed.data);
     res.status(201).json({ success: true, data: message });
-  } catch (err) {
-    next(err);
-  }
-});
+  })
+);
+
+router.post(
+  '/:id/participants',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { userId } = req.body;
+    if (!userId) throw new AppError('userId is required', 400);
+
+    const participant = await chatService.addParticipant(req.params.id, req.user!.userId, userId);
+    res.status(201).json({ success: true, data: participant });
+  })
+);
+
+router.delete(
+  '/:id/participants/:userId',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    await chatService.removeParticipant(req.params.id, req.user!.userId, req.params.userId);
+    res.json({ success: true, message: 'Participant removed' });
+  })
+);
 
 export default router;

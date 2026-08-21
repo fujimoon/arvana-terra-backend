@@ -1,45 +1,26 @@
-import { Request, Response, NextFunction } from 'express';
-import { AppError } from './error';
-import { AuthenticatedRequest } from './auth';
+import { Response, NextFunction } from 'express';
+import { AuthenticatedRequest } from '../types';
+import { UserRole } from '@prisma/client';
 
-export function requireAdmin(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): void {
-  if (!req.user) {
-    return next(new AppError('認証が必要です', 401));
-  }
-  if (req.user.role !== 'admin') {
-    return next(new AppError('管理者権限が必要です', 403));
-  }
-  next();
-}
+export const requireRoles = (...roles: UserRole[]) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({ success: false, error: 'Authentication required' });
+      return;
+    }
+    if (!roles.includes(req.user.role)) {
+      res.status(403).json({
+        success: false,
+        error: `This action requires one of: ${roles.join(', ')}`,
+      });
+      return;
+    }
+    next();
+  };
+};
 
-export function requireLandlordOrHomeowner(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): void {
-  if (!req.user) {
-    return next(new AppError('認証が必要です', 401));
-  }
-  if (!['landlord', 'homeowner', 'admin'].includes(req.user.role)) {
-    return next(new AppError('権限がありません', 403));
-  }
-  next();
-}
+export const requireAdmin = requireRoles('admin', 'super_admin');
 
-export function requireOwnerOrAdmin(
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): void {
-  if (!req.user) {
-    return next(new AppError('認証が必要です', 401));
-  }
-  if (!['landlord', 'homeowner', 'admin'].includes(req.user.role)) {
-    return next(new AppError('権限がありません', 403));
-  }
-  next();
-}
+export const requireSuperAdmin = requireRoles('super_admin');
+
+export const requireLandlordOrHomeowner = requireRoles('landlord', 'homeowner', 'admin', 'super_admin');

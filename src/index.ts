@@ -1,122 +1,50 @@
-import 'dotenv/config';
-import http from 'http';
-import { Server as SocketIOServer } from 'socket.io';
+import dotenv from 'dotenv';
+dotenv.config();
+
+import { createServer } from 'http';
 import app from './app';
+import { initializeSocketIO } from './socket';
 import { setIO } from './socket/instance';
+import { logger } from './lib/logger';
 import { prisma } from './lib/prisma';
+import { redis } from './lib/redis';
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 3001;
 
-const httpServer = http.createServer(app);
-
-// ─── Socket.io setup ───────────────────────────────────────────────────────────
-const io = new SocketIOServer(httpServer, {
-  cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    credentials: true
-  }
-});
-
-// Register the Socket.io instance globally so services can emit events
-setIO(io);
-
-// Notification namespace
-const notificationNs = io.of('/notification');
-
-notificationNs.on('connection', (socket) => {
-  console.log(`[Socket] Client connected to /notification: ${socket.id}`);
-
-  // Client joins their personal room
-  socket.on('join', (userId: string) => {
-    socket.join(`user:${userId}`);
-    console.log(`[Socket] User ${userId} joined notification room`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`[Socket] Client disconnected: ${socket.id}`);
-  });
-});
-
-// ── Chat namespace ──────────────────────────────────────────────────────────
-const chatNs = io.of('/chat');
-
-chatNs.use((socket, next) => {
-  // トークン認証（簡易版: queryパラメータからトークン取得）
-  next();
-});
-
-chatNs.on('connection', (socket) => {
-  console.log(`[Chat] Client connected: ${socket.id}`);
-
-  // チャットルームに参加
-  socket.on('join_room', (roomId: string) => {
-    socket.join(`room:${roomId}`);
-    console.log(`[Chat] Socket ${socket.id} joined room:${roomId}`);
-  });
-
-  // メッセージ送信
-  socket.on('send_message', async (data: {
-    roomId: string;
-    content: string;
-    senderId: string;
-    senderName: string;
-  }) => {
-    try {
-      const message = await prisma.chatMessage.create({
-        data: {
-          chatRoomId: data.roomId,
-          senderId: data.senderId,
-          content: data.content,
-        },
-        include: { sender: { select: { id: true, name: true } } },
-      });
-      await prisma.chatRoom.update({
-        where: { id: data.roomId },
-        data: { updatedAt: new Date() },
-      });
-      chatNs.to(`room:${data.roomId}`).emit('new_message', message);
-    } catch (err) {
-      console.error('[Chat] send_message error:', err);
-    }
-  });
-
-  socket.on('leave_room', (roomId: string) => {
-    socket.leave(`room:${roomId}`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(`[Chat] Client disconnected: ${socket.id}`);
-  });
-});
-
-// ─── Start server ──────────────────────────────────────────────────────────────
-async function main() {
+async function bootstrap() {
   try {
     await prisma.$connect();
-    console.log('[Prisma] Connected to database');
+    logger.info('Database connected successfully');
+
+    await redis.ping();
+    logger.info('Redis connected successfully');
+
+    const httpServer = createServer(app);
+    const io = initializeSocketIO(httpServer);
+    setIO(io);
 
     httpServer.listen(PORT, () => {
-      console.log(`[Server] Arvana Terra Backend running on http://localhost:${PORT}`);
-      console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`Arvana-Terra Backend running on port ${PORT}`);
+      logger.info(`Environment: ${process.env.NODE_ENV}`);
     });
   } catch (error) {
-    console.error('[Server] Failed to start:', error);
-    await prisma.$disconnect();
+    logger.error('Failed to start server:', error);
     process.exit(1);
   }
 }
 
-main();
+bootstrap();
 
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n[Server] Shutting down gracefully...');
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received, shutting down gracefully');
   await prisma.$disconnect();
+  redis.disconnect();
   process.exit(0);
 });
 
-process.on('SIGTERM', async () => {
-  console.log('\n[Server] Shutting down gracefully...');
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received, shutting down gracefully');
   await prisma.$disconnect();
+  redis.disconnect();
   process.exit(0);
 });
