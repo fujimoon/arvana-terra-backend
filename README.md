@@ -1,212 +1,366 @@
-# Arvana-Terra Backend
+# Arvana Terra Backend
 
-Real estate and land management platform backend server for the Arvana-Terra application.
+不動産資産管理プラットフォーム「Arvana Terra」のバックエンドサーバーです。
 
-## Overview
+---
 
-Arvana-Terra is a comprehensive property management platform for landlords and homeowners in Japan. It provides:
-- Land (土地) and Property (物件) management
-- Room and tenant management
-- Payment tracking
-- Equipment and smart device monitoring
-- Contract management (NDA, rental, purchase)
-- Real-time chat between owners, tenants, and employees
-- AI-powered task suggestions and asset valuation
-- Business opportunity tracking
-- SNS community for real estate professionals
-- Vendor (業者) directory managed by admin
+## 概要
 
-## Tech Stack
+Arvana Terra Backend は、REST API と Socket.IO リアルタイム通信を提供する Node.js サーバーです。土地・物件・部屋・入居者・設備・スマートデバイス・入金管理・契約・チャット・タスク・従業員・業者・SNS・資産評価・AI提案など、不動産ビジネスに必要なすべての機能を API として提供します。
 
-| Category | Technology |
-|---|---|
-| Runtime | Node.js 20.x LTS |
-| Language | TypeScript 5.x |
-| Framework | Express.js 4.x |
-| Database | PostgreSQL 16.x |
-| ORM | Prisma 5.x |
-| Cache | Redis 7.x |
-| WebSocket | Socket.io 4.x |
-| Auth | JWT (jsonwebtoken 9.x) + bcryptjs |
-| Validation | Zod 3.x |
-| Logging | Winston 3.x |
-| Security | Helmet 7.x + express-rate-limit 7.x |
-| AI | OpenAI SDK 4.x |
-| File Upload | Multer |
-| Encryption | AES-256-GCM (for mynumber) |
+---
 
-## Architecture Overview
+## 技術スタック
+
+| 技術 | バージョン | 用途 |
+|------|-----------|------|
+| Node.js | 20.x LTS | ランタイム |
+| TypeScript | 5.x | 言語 |
+| Express | 4.x | Web フレームワーク |
+| Prisma | 5.9.x | ORM |
+| PostgreSQL | 16.x | データベース |
+| Redis | 7.x | キャッシュ・セッション |
+| Socket.IO | 4.x | WebSocket (リアルタイムチャット・通知) |
+| JWT (jsonwebtoken) | 9.x | 認証 |
+| bcryptjs | 2.x | パスワードハッシュ |
+| Zod | 3.x | バリデーション |
+| Winston | 3.x | ロギング |
+| Helmet | 7.x | セキュリティヘッダー |
+| express-rate-limit | 7.x | レート制限 |
+| OpenAI SDK | 4.x | AIタスク提案・資産評価 |
+| Multer | 1.x | ファイルアップロード |
+| AES-256-GCM | — | マイナンバー暗号化 |
+
+---
+
+## アーキテクチャ
 
 ```
-Client (Web/Mobile)
-      |
-      | HTTP/REST
-      v
-Express.js App (src/app.ts)
-      |
-      +-- Middleware (Helmet, CORS, Rate Limit, Morgan)
-      +-- Routes (/api/v1/*)
-      |     +-- Auth, Lands, Properties, Rooms
-      |     +-- Equipment, SmartDevices, Contracts
-      |     +-- Chats, Tasks, Employees, Vendors
-      |     +-- Opportunities, Valuation, SNS
-      |     +-- Notifications, Preferences, Admin
-      +-- Services (business logic)
-      +-- Prisma (PostgreSQL)
-      +-- Redis (caching/sessions)
-      |
-      | WebSocket
-      v
-Socket.io Server
-      +-- /chat namespace
-      +-- /notification namespace
+クライアント (Web / iOS / Android)
+        |
+        | HTTP/REST
+        v
+Express.js (src/app.ts)
+        |
+        +-- Middleware
+        |     +-- Helmet (セキュリティヘッダー)
+        |     +-- CORS
+        |     +-- Rate Limit
+        |     +-- Morgan (HTTPログ)
+        |     +-- Auth (JWT検証)
+        |     +-- RBAC (ロール権限)
+        |
+        +-- Routes (/api/v1/*)
+        |     +-- auth, users
+        |     +-- lands, properties, rooms, tenants
+        |     +-- equipment, smartDevices
+        |     +-- payments, contracts
+        |     +-- chats, notifications
+        |     +-- tasks, employees, vendors
+        |     +-- opportunities, valuation, sns
+        |     +-- schedules, preferences, admin
+        |
+        +-- Services (ビジネスロジック)
+        +-- Prisma Client (PostgreSQL)
+        +-- Redis Client (ioredis)
+        |
+        | WebSocket
+        v
+Socket.IO Server
+        +-- /chat          (リアルタイムチャット)
+        +-- /notification  (プッシュ通知・カメラアラート)
 ```
 
-## Database Schema Overview
+---
 
-### Core Models
-- **User** - landlord, homeowner, employer, admin, super_admin roles
-- **RefreshToken** - JWT refresh token management
-- **UserPreference** - preferred regions, notification settings
+## データベーススキーマ
 
-### Real Estate
-- **Land** - land parcels with area, zoning, valuation
-- **Property** - buildings linked to land
-- **Room** - individual units within properties
-- **Tenant** - occupant records per room
-- **Payment** - rent payment tracking
+### ユーザー管理
 
-### Asset Management
-- **Equipment** - property equipment (HVAC, cameras, etc.)
-- **SmartDeviceData** - IoT meters and cameras
-- **Contract** - NDA, rental, purchase agreements
-- **ContractTemplate** - reusable contract templates
+| モデル | 説明 |
+|--------|------|
+| **User** | ユーザー (landlord / homeowner / employer / admin / super_admin) |
+| **RefreshToken** | JWTリフレッシュトークン管理 |
+| **UserPreference** | 希望地域・通知設定 |
 
-### Communication
-- **ChatRoom** - property/land/employee/direct channels
-- **ChatParticipant** - room membership
-- **ChatMessage** - message history
-- **Notification** - system notifications
+### 不動産
 
-### Business
-- **Task** - management tasks (manual + AI-suggested)
-- **Employee** - hired staff records (mynumber encrypted)
-- **Vendor** - approved business vendors
-- **UserVendor** - owner-vendor connections
-- **BusinessOpportunity** - investment/sale opportunities
-- **AssetValuation** - AI-calculated portfolio values
+| モデル | 説明 |
+|--------|------|
+| **Land** | 土地 (面積・用途地域・評価額・住所) |
+| **Property** | 物件・建物 (土地に紐付く) |
+| **Room** | 部屋 (物件内の個別ユニット) |
+| **Tenant** | 入居者 (部屋に紐付く) |
+| **Payment** | 入金記録 (家賃・管理費等) |
 
-### Community
-- **SnsPost** - community posts (advice, events, knowledge)
-- **SnsLike** - post likes
-- **SnsComment** - post comments
-- **SnsEvent** - event listings
+### 設備・デバイス
 
-## API Endpoints Summary
+| モデル | 説明 |
+|--------|------|
+| **Equipment** | 設備 (エアコン・カメラ・エレベーター等) |
+| **SmartDeviceData** | IoT デバイス (電力計・水道計・カメラ) |
 
-### Auth (`/api/v1/auth`)
-| Method | Path | Description |
-|---|---|---|
-| POST | /register | Register new user |
-| POST | /login | Login |
-| POST | /refresh | Refresh access token |
-| POST | /logout | Logout |
-| GET | /me | Get current user |
-| PUT | /me | Update current user |
+### 契約
 
-### Land (`/api/v1/lands`)
-| Method | Path | Description |
-|---|---|---|
-| GET | / | Public land listing |
-| GET | /:id | Public land detail |
-| GET | /my | Owner's land list |
-| GET | /my/:id | Owner's land detail |
-| POST | / | Create land |
-| PUT | /:id | Update land |
-| DELETE | /:id | Delete land |
+| モデル | 説明 |
+|--------|------|
+| **Contract** | 契約書 (NDA / 賃貸 / 売買) |
+| **ContractTemplate** | 契約テンプレート |
 
-### Property (`/api/v1/properties`)
-Same pattern as Land endpoints.
+### コミュニケーション
 
-### Rooms (`/api/v1/properties/:propertyId/rooms`)
-CRUD + Tenant management sub-routes.
+| モデル | 説明 |
+|--------|------|
+| **ChatRoom** | チャットルーム (物件・土地・従業員・ダイレクト) |
+| **ChatParticipant** | チャットルーム参加者 |
+| **ChatMessage** | チャットメッセージ履歴 |
+| **Notification** | システム通知 (入金・カメラ・契約・タスク・チャット) |
 
-### Equipment (`/api/v1/properties/:propertyId/equipment`)
-CRUD + `/floor/:floor` for common area equipment.
+### ビジネス
 
-### Smart Devices (`/api/v1/properties/:propertyId/smart-devices`)
-CRUD with camera alert integration.
+| モデル | 説明 |
+|--------|------|
+| **Task** | 管理タスク (手動 + AIサジェスト) |
+| **Employee** | 従業員 (マイナンバーはAES-256-GCM暗号化) |
+| **Vendor** | 業者ディレクトリ |
+| **UserVendor** | オーナー - 業者コネクション |
+| **BusinessOpportunity** | 投資・売却ビジネス機会 |
+| **AssetValuation** | AI算出資産評価履歴 |
 
-### Contracts (`/api/v1/contracts`)
-CRUD for contracts + `/api/v1/contract-templates` for templates.
+### コミュニティ
 
-### Chat (`/api/v1/chats`)
-Chat room management + messages + participants.
+| モデル | 説明 |
+|--------|------|
+| **SnsPost** | コミュニティ投稿 (相談・事例・イベント・ナレッジ) |
+| **SnsLike** | 投稿いいね |
+| **SnsComment** | 投稿コメント |
+| **SnsEvent** | イベント |
 
-### Tasks (`/api/v1/tasks`)
-Task CRUD + `/ai-suggest` for AI-generated tasks.
+---
 
-### Vendors (`/api/v1/vendors`)
-Public vendor listing + connect/disconnect + admin management.
+## API エンドポイント一覧
 
-### SNS (`/api/v1/sns`)
-Posts, likes, comments, events, member search.
+### 認証 `/api/v1/auth`
 
-### Notifications (`/api/v1/notifications`)
-Get + mark read + mark all read.
+| メソッド | パス | 説明 |
+|---------|------|------|
+| POST | `/register` | 新規ユーザー登録 |
+| POST | `/login` | ログイン (JWT発行) |
+| POST | `/refresh` | アクセストークンリフレッシュ |
+| POST | `/logout` | ログアウト |
+| GET | `/me` | 現在のユーザー情報取得 |
+| PUT | `/me` | ユーザー情報更新 |
 
-## Socket.io Events
+### 土地 `/api/v1/lands`
 
-### `/chat` Namespace
-| Direction | Event | Payload |
-|---|---|---|
-| Client→Server | `join_chat` | `chatRoomId: string` |
-| Client→Server | `leave_chat` | `chatRoomId: string` |
-| Client→Server | `send_message` | `{ chatRoomId, content, messageType? }` |
-| Client→Server | `typing` | `{ chatRoomId: string }` |
-| Server→Client | `new_message` | Message object |
-| Server→Client | `user_typing` | `{ userId, chatRoomId }` |
-| Server→Client | `user_joined` | `{ chatRoomId, userId }` |
-| Server→Client | `user_left` | `{ chatRoomId, userId }` |
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/public` | 公開土地一覧 |
+| GET | `/my` | マイ土地一覧 |
+| GET | `/:id` | 土地詳細 |
+| POST | `/` | 土地作成 |
+| PUT | `/:id` | 土地更新 |
+| DELETE | `/:id` | 土地削除 |
 
-### `/notification` Namespace
-| Direction | Event | Payload |
-|---|---|---|
-| Server→Client | `new_notification` | Notification object |
-| Server→Client | `camera_alert` | `{ deviceId, message, notificationId }` |
+### 物件 `/api/v1/properties`
 
-### Socket.io Authentication
-Connect with token in handshake auth:
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/public` | 公開物件一覧 |
+| GET | `/my` | マイ物件一覧 |
+| GET | `/:id` | 物件詳細 |
+| POST | `/` | 物件作成 |
+| PUT | `/:id` | 物件更新 |
+| DELETE | `/:id` | 物件削除 |
+
+### 部屋 `/api/v1/properties/:propertyId/rooms`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | 部屋一覧 |
+| GET | `/:roomId` | 部屋詳細 |
+| POST | `/` | 部屋作成 |
+| PUT | `/:roomId` | 部屋更新 |
+| DELETE | `/:roomId` | 部屋削除 |
+
+### 設備 `/api/v1/properties/:propertyId/equipment`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | 設備一覧 |
+| GET | `/floor/:floor` | 階別設備一覧 |
+| GET | `/:id` | 設備詳細 |
+| POST | `/` | 設備追加 |
+| PUT | `/:id` | 設備更新 |
+| DELETE | `/:id` | 設備削除 |
+
+### スマートデバイス `/api/v1/properties/:propertyId/smart-devices`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | デバイス一覧 |
+| GET | `/:deviceId` | デバイス詳細 |
+| POST | `/` | デバイス追加 |
+| PUT | `/:deviceId` | デバイス更新 |
+| DELETE | `/:deviceId` | デバイス削除 |
+
+### 入金管理 `/api/v1/payments`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/property/:propertyId` | 物件別入金一覧 |
+| GET | `/:id` | 入金詳細 |
+| POST | `/` | 入金記録追加 |
+| PUT | `/:id` | 入金記録更新 |
+| DELETE | `/:id` | 入金記録削除 |
+
+### 契約 `/api/v1/contracts`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | 契約一覧 |
+| GET | `/:id` | 契約詳細 |
+| POST | `/` | 契約作成 |
+| PUT | `/:id` | 契約更新 |
+| DELETE | `/:id` | 契約削除 |
+
+### チャット `/api/v1/chats`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/rooms` | チャットルーム一覧 |
+| POST | `/rooms` | チャットルーム作成 |
+| GET | `/rooms/:id/messages` | メッセージ一覧 |
+| POST | `/rooms/:id/messages` | メッセージ送信 |
+
+### タスク `/api/v1/tasks`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | タスク一覧 |
+| POST | `/` | タスク作成 |
+| PUT | `/:id` | タスク更新 |
+| DELETE | `/:id` | タスク削除 |
+| POST | `/ai-suggest` | AIタスク提案 |
+
+### 従業員 `/api/v1/employees`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | 従業員一覧 |
+| GET | `/:id` | 従業員詳細 |
+| POST | `/` | 従業員登録 |
+| PUT | `/:id` | 従業員更新 |
+| DELETE | `/:id` | 従業員削除 |
+
+### 業者 `/api/v1/vendors`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | 業者一覧 (公開) |
+| GET | `/:id` | 業者詳細 |
+| POST | `/:id/connect` | 業者とコネクト |
+| DELETE | `/:id/disconnect` | コネクト解除 |
+
+### 通知 `/api/v1/notifications`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/` | 通知一覧 |
+| PATCH | `/:id/read` | 既読にする |
+| PATCH | `/read-all` | 全て既読 |
+
+### SNS `/api/v1/sns`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| GET | `/posts` | 投稿一覧 (カテゴリフィルター) |
+| POST | `/posts` | 投稿作成 |
+| GET | `/posts/:id` | 投稿詳細 |
+| POST | `/posts/:id/like` | いいね |
+| POST | `/posts/:id/comments` | コメント追加 |
+| GET | `/events` | イベント一覧 |
+| POST | `/events` | イベント作成 |
+
+### 資産評価 `/api/v1/valuation`
+
+| メソッド | パス | 説明 |
+|---------|------|------|
+| POST | `/calculate` | AI資産評価計算 |
+| GET | `/history` | 評価履歴一覧 |
+
+### その他
+
+| グループ | パス | 説明 |
+|---------|------|------|
+| ユーザー | `/api/v1/users` | ユーザー管理 |
+| 入居者 | `/api/v1/tenants` | 入居者管理 |
+| ビジネス機会 | `/api/v1/opportunities` | 機会一覧・作成 |
+| スケジュール | `/api/v1/schedules` | スケジュール管理 |
+| 設定 | `/api/v1/preferences` | ユーザー設定 |
+| 問い合わせ | `/api/v1/inquiries` | 問い合わせ管理 |
+| 売却依頼 | `/api/v1/sale-requests` | 売却依頼管理 |
+| 管理者 | `/api/v1/admin` | 管理者専用操作 |
+
+---
+
+## Socket.IO イベント
+
+### `/chat` 名前空間
+
+| 方向 | イベント | ペイロード | 説明 |
+|------|---------|-----------|------|
+| Client→Server | `join_chat` | `chatRoomId: string` | チャットルーム入室 |
+| Client→Server | `leave_chat` | `chatRoomId: string` | チャットルーム退室 |
+| Client→Server | `send_message` | `{ chatRoomId, content, messageType? }` | メッセージ送信 |
+| Client→Server | `typing` | `{ chatRoomId: string }` | 入力中通知 |
+| Server→Client | `new_message` | Message オブジェクト | 新しいメッセージ |
+| Server→Client | `user_typing` | `{ userId, chatRoomId }` | 他ユーザー入力中 |
+| Server→Client | `user_joined` | `{ chatRoomId, userId }` | ユーザー入室 |
+| Server→Client | `user_left` | `{ chatRoomId, userId }` | ユーザー退室 |
+
+### `/notification` 名前空間
+
+| 方向 | イベント | ペイロード | 説明 |
+|------|---------|-----------|------|
+| Server→Client | `new_notification` | Notification オブジェクト | 新規通知 |
+| Server→Client | `camera_alert` | `{ deviceId, message, notificationId }` | カメラアラート |
+
+### Socket.IO 接続認証
+
 ```javascript
 const socket = io('http://localhost:3001/chat', {
   auth: { token: 'your-access-token' }
 });
 ```
 
-## Setup & Startup Instructions
+---
 
-### Prerequisites
-- Node.js 20.x
-- PostgreSQL 16.x (or Docker)
-- Redis 7.x (or Docker)
-- npm 10.x
+## セットアップ・起動方法
 
-### 1. Clone and navigate
-```bash
-cd /path/to/arvana-terra-backend
-```
+### 前提条件
 
-### 2. Install dependencies
+- **Node.js 20.x**
+- **PostgreSQL 16.x** (またはDocker)
+- **Redis 7.x** (またはDocker)
+- **npm 10.x**
+
+### 手順
+
+**1. 依存パッケージのインストール**
+
 ```bash
 npm install
 ```
 
-### 3. Set up environment variables
+**2. 環境変数の設定**
+
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your values:
+`.env` を編集：
+
 ```env
 NODE_ENV=development
 PORT=3001
@@ -214,30 +368,35 @@ DATABASE_URL=postgresql://terra:terrapass@localhost:5433/arvana_terra
 REDIS_URL=redis://localhost:6380
 JWT_SECRET=your-super-secret-key
 JWT_REFRESH_SECRET=your-refresh-secret-key
-ENCRYPTION_KEY=<64 hex characters - 32 bytes>
-OPENAI_API_KEY=sk-your-openai-key
-ALLOWED_ORIGINS=http://localhost:5174
+ENCRYPTION_KEY=<64文字のhex文字列 = 32バイト>
+OPENAI_API_KEY=sk-your-openai-api-key
+ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-Generate a secure ENCRYPTION_KEY:
+ENCRYPTION_KEY の生成：
+
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
-### 4. Run Prisma migration
+**3. Prisma マイグレーション**
+
 ```bash
 npx prisma migrate dev --name init
 npx prisma generate
 ```
 
-### 5. Start in development mode
+**4. 開発サーバー起動**
+
 ```bash
 npm run dev
 ```
 
-### 6. Start with Docker
+サーバーは `http://localhost:3001` で起動します。
+
+**5. Docker での起動**
+
 ```bash
-# Set required env vars in .env or shell
 export JWT_SECRET=your-secret
 export JWT_REFRESH_SECRET=your-refresh-secret
 export ENCRYPTION_KEY=your-64-char-hex-key
@@ -246,33 +405,120 @@ export OPENAI_API_KEY=sk-your-key
 docker-compose up --build
 ```
 
-The server will be available at `http://localhost:3001`.
+---
 
-## Environment Variables
+## 環境変数一覧
 
-| Variable | Required | Description |
-|---|---|---|
-| `NODE_ENV` | No | `development` or `production` (default: development) |
-| `PORT` | No | Server port (default: 3001) |
-| `DATABASE_URL` | Yes | PostgreSQL connection URL |
-| `REDIS_URL` | No | Redis URL (default: redis://localhost:6379) |
-| `JWT_SECRET` | Yes | Secret for signing access tokens |
-| `JWT_REFRESH_SECRET` | No | Secret for refresh tokens (falls back to JWT_SECRET) |
-| `JWT_EXPIRES_IN` | No | Access token expiry (default: 15m) |
-| `JWT_REFRESH_EXPIRES_IN` | No | Refresh token expiry (default: 30d) |
-| `ENCRYPTION_KEY` | Yes | 32-byte hex key for AES-256-GCM mynumber encryption |
-| `OPENAI_API_KEY` | Yes | OpenAI API key for AI features |
-| `ALLOWED_ORIGINS` | No | Comma-separated CORS origins |
-| `LOG_LEVEL` | No | Winston log level (default: info) |
-| `UPLOAD_DIR` | No | File upload directory (default: ./uploads) |
-| `MAX_FILE_SIZE` | No | Max upload size in bytes (default: 10485760 = 10MB) |
+| 変数 | 必須 | デフォルト | 説明 |
+|------|------|-----------|------|
+| `NODE_ENV` | — | `development` | 実行環境 |
+| `PORT` | — | `3001` | サーバーポート |
+| `DATABASE_URL` | **必須** | — | PostgreSQL 接続 URL |
+| `REDIS_URL` | — | `redis://localhost:6379` | Redis 接続 URL |
+| `JWT_SECRET` | **必須** | — | アクセストークン署名キー |
+| `JWT_REFRESH_SECRET` | — | JWT_SECRET と同じ | リフレッシュトークン署名キー |
+| `JWT_EXPIRES_IN` | — | `15m` | アクセストークン有効期限 |
+| `JWT_REFRESH_EXPIRES_IN` | — | `30d` | リフレッシュトークン有効期限 |
+| `ENCRYPTION_KEY` | **必須** | — | マイナンバー暗号化キー (32バイト hex) |
+| `OPENAI_API_KEY` | **必須** | — | OpenAI API キー (AI機能に使用) |
+| `ALLOWED_ORIGINS` | — | `*` | CORS 許可オリジン (カンマ区切り) |
+| `LOG_LEVEL` | — | `info` | Winston ログレベル |
+| `UPLOAD_DIR` | — | `./uploads` | ファイルアップロードディレクトリ |
+| `MAX_FILE_SIZE` | — | `10485760` | 最大アップロードサイズ (バイト、デフォルト 10MB) |
 
-## User Roles
+---
 
-| Role | Description |
-|---|---|
-| `landlord` | 地主 - Land owner |
-| `homeowner` | 家主 - Property/building owner |
-| `employer` | 雇用者 - From Arvana Work, can join chats |
-| `admin` | 管理者 - Can manage vendors |
-| `super_admin` | Highest authority |
+## プロジェクト構造
+
+```
+arvana-terra-backend/
+├── src/
+│   ├── app.ts                    # Express アプリ設定
+│   ├── index.ts                  # サーバーエントリポイント
+│   ├── routes/                   # ルーター
+│   │   ├── index.ts              # ルート集約
+│   │   ├── auth.ts
+│   │   ├── lands.ts
+│   │   ├── properties.ts
+│   │   ├── rooms.ts
+│   │   ├── tenants.ts
+│   │   ├── equipment.ts
+│   │   ├── smartDevices.ts
+│   │   ├── payments.ts
+│   │   ├── contracts.ts
+│   │   ├── chats.ts
+│   │   ├── tasks.ts
+│   │   ├── employees.ts
+│   │   ├── vendors.ts
+│   │   ├── notifications.ts
+│   │   ├── sns.ts
+│   │   ├── valuation.ts
+│   │   ├── opportunities.ts
+│   │   ├── schedules.ts
+│   │   ├── preferences.ts
+│   │   ├── inquiries.ts
+│   │   ├── saleRequests.ts
+│   │   ├── users.ts
+│   │   └── admin.ts
+│   ├── services/                 # ビジネスロジック
+│   │   ├── auth.service.ts
+│   │   ├── land.service.ts
+│   │   ├── property.service.ts
+│   │   ├── room.service.ts
+│   │   ├── chat.service.ts
+│   │   ├── contract.service.ts
+│   │   ├── equipment.service.ts
+│   │   ├── task.service.ts
+│   │   ├── employee.service.ts
+│   │   ├── vendor.service.ts
+│   │   ├── notification.service.ts
+│   │   ├── sns.service.ts
+│   │   ├── tenant.service.ts
+│   │   ├── inquiry.service.ts
+│   │   ├── saleRequest.service.ts
+│   │   ├── schedule.service.ts
+│   │   ├── userPreference.service.ts
+│   │   └── ai.service.ts
+│   ├── middleware/
+│   │   ├── auth.ts               # JWT 認証
+│   │   ├── rbac.ts               # ロールベースアクセス制御
+│   │   ├── error.ts              # エラーハンドラー
+│   │   └── upload.ts             # Multer ファイルアップロード
+│   ├── socket/
+│   │   ├── index.ts              # Socket.IO イベントハンドラー
+│   │   └── instance.ts           # Socket.IO インスタンス
+│   ├── lib/
+│   │   ├── prisma.ts             # Prisma クライアント
+│   │   ├── redis.ts              # ioredis クライアント
+│   │   └── logger.ts             # Winston ロガー
+│   ├── utils/
+│   │   ├── asyncHandler.ts       # async/await エラーラッパー
+│   │   └── crypto.ts             # AES-256-GCM 暗号化ユーティリティ
+│   └── types/
+│       └── index.ts              # 共有型定義
+├── prisma/
+│   └── schema.prisma             # データベーススキーマ (26モデル)
+├── uploads/                      # アップロードファイル
+├── .env.example
+├── docker-compose.yml
+├── package.json
+└── tsconfig.json
+```
+
+---
+
+## ユーザーロール
+
+| ロール | 説明 |
+|--------|------|
+| `landlord` | 地主 — 土地の所有・管理 |
+| `homeowner` | 家主 — 物件・建物の所有・管理 |
+| `employer` | 雇用者 — Arvana Work 連携、チャット参加 |
+| `admin` | 管理者 — 業者ディレクトリ管理 |
+| `super_admin` | スーパー管理者 — 最高権限 |
+
+---
+
+## ライセンス
+
+Copyright © 2024 Arvana Terra. All rights reserved.
