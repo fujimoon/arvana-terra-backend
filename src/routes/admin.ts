@@ -138,6 +138,51 @@ router.get(
   })
 );
 
+router.get(
+  '/chats/:id',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const chatRoom = await prisma.chatRoom.findUnique({
+      where: { id: req.params.id },
+      include: {
+        participants: {
+          include: { user: { select: { id: true, name: true, email: true, role: true, profileImageUrl: true } } },
+        },
+        property: { select: { id: true, name: true } },
+        land: { select: { id: true, name: true } },
+        _count: { select: { messages: true } },
+      },
+    });
+    if (!chatRoom) throw new AppError('Chat room not found', 404);
+    res.json({ success: true, data: chatRoom });
+  })
+);
+
+router.get(
+  '/chats/:id/messages',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+
+    const room = await prisma.chatRoom.findUnique({ where: { id: req.params.id } });
+    if (!room) throw new AppError('Chat room not found', 404);
+
+    const [messages, total] = await Promise.all([
+      prisma.chatMessage.findMany({
+        where: { chatRoomId: req.params.id },
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'asc' },
+        include: {
+          sender: { select: { id: true, name: true, profileImageUrl: true } },
+        },
+      }),
+      prisma.chatMessage.count({ where: { chatRoomId: req.params.id } }),
+    ]);
+
+    res.json({ success: true, data: messages, total, page, limit, totalPages: Math.ceil(total / limit) });
+  })
+);
+
 // Vendor management
 router.get(
   '/vendors',
