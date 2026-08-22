@@ -223,6 +223,21 @@ export class SnsService {
     return { registered: true };
   }
 
+  async getUserProfile(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId, isActive: true },
+      select: { id: true, name: true, role: true, profileImageUrl: true, bio: true },
+    });
+    if (!user) throw new AppError('User not found', 404);
+
+    const [postCount, totalLikes] = await Promise.all([
+      prisma.snsPost.count({ where: { authorId: userId } }),
+      prisma.snsLike.count({ where: { post: { authorId: userId } } }),
+    ]);
+
+    return { ...user, postCount, totalLikes };
+  }
+
   async searchMembers(query: { name?: string; role?: string; page?: string; limit?: string }) {
     const { skip, take, page, limit } = getPagination(query);
     const where: Record<string, unknown> = { isActive: true };

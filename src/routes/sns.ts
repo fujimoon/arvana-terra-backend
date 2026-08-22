@@ -141,4 +141,13 @@ router.get(
   })
 );
 
+router.get(
+  '/users/:userId',
+  authenticate,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const profile = await snsService.getUserProfile(req.params.userId);
+    res.json({ success: true, data: profile });
+  })
+);
+
 export default router;
