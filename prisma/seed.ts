@@ -392,6 +392,126 @@ async function main() {
 
   console.log('✓ Notifications created');
 
+  // ─── Vendors ──────────────────────────────────────────────────────────────────
+  await prisma.vendor.createMany({
+    skipDuplicates: true,
+    data: [
+      {
+        id: 'vendor-001',
+        name: '大阪ガラス修理センター',
+        category: 'glass',
+        contactName: '佐藤 修',
+        email: 'glass@osaka-repair.jp',
+        phone: '06-1234-5678',
+        address: '大阪府大阪市北区梅田1-1-1',
+        description: 'ガラス修理・交換の専門業者。24時間対応可能。',
+        serviceAreas: ['大阪府', '兵庫県', '京都府'],
+        rating: 4.5,
+        isApproved: true,
+        registeredBy: admin.id,
+      },
+      {
+        id: 'vendor-002',
+        name: '関西電気工事株式会社',
+        category: 'electric',
+        contactName: '田村 電太',
+        email: 'info@kansai-electric.jp',
+        phone: '06-9876-5432',
+        address: '大阪府大阪市中央区本町2-3-4',
+        description: '電気工事・設備メンテナンス全般。資格保有技術者多数在籍。',
+        serviceAreas: ['大阪府', '京都府', '奈良県'],
+        rating: 4.2,
+        isApproved: true,
+        registeredBy: admin.id,
+      },
+      {
+        id: 'vendor-003',
+        name: 'クリーンプロ清掃サービス',
+        category: 'cleaning',
+        contactName: '山田 清子',
+        email: 'clean@cleanpro.jp',
+        phone: '0120-111-222',
+        address: '大阪府堺市北区1-2-3',
+        description: '退去清掃・定期清掃・特殊清掃に対応。エコ洗剤使用。',
+        serviceAreas: ['大阪府', '兵庫県'],
+        rating: 4.8,
+        isApproved: false,
+        registeredBy: landlord1.id,
+      },
+    ],
+  });
+  console.log('✓ Vendors created');
+
+  // ─── Chat Rooms & Messages ────────────────────────────────────────────────────
+  const chatRoom1 = await prisma.chatRoom.create({
+    data: {
+      id: 'chat-001',
+      type: 'property',
+      name: 'グランドール梅田 - お問い合わせ',
+      propertyId: property1.id,
+      createdBy: landlord1.id,
+      participants: {
+        create: [
+          { userId: landlord1.id },
+          { userId: homeowner.id },
+        ],
+      },
+    },
+  });
+
+  await prisma.chatMessage.createMany({
+    data: [
+      {
+        id: 'msg-001',
+        chatRoomId: chatRoom1.id,
+        senderId: homeowner.id,
+        content: 'グランドール梅田の201号室について詳しく教えていただけますか？',
+        messageType: 'text',
+      },
+      {
+        id: 'msg-002',
+        chatRoomId: chatRoom1.id,
+        senderId: landlord1.id,
+        content: 'お問い合わせありがとうございます。201号室は2LDK、56㎡です。現在空室となっております。',
+        messageType: 'text',
+      },
+      {
+        id: 'msg-003',
+        chatRoomId: chatRoom1.id,
+        senderId: homeowner.id,
+        content: '内見は可能でしょうか？来週の土曜日はいかがでしょうか。',
+        messageType: 'text',
+      },
+    ],
+  });
+  console.log('✓ Chat rooms and messages created');
+
+  // ─── SNS Posts ────────────────────────────────────────────────────────────────
+  await prisma.snsPost.createMany({
+    skipDuplicates: true,
+    data: [
+      {
+        id: 'sns-001',
+        authorId: landlord1.id,
+        type: 'general',
+        title: '大阪の不動産市場について',
+        content: '最近の大阪不動産市場は活況を呈しています。梅田・難波エリアの需要が特に高く、空室率も低下傾向にあります。投資家の皆さんにとって良い機会かもしれません。',
+        tags: ['不動産', '大阪', '投資'],
+        viewCount: 128,
+      },
+      {
+        id: 'sns-002',
+        authorId: landlord2.id,
+        type: 'general',
+        title: '京都の土地活用事例',
+        content: '京都市内の土地を駐車場として活用した事例をご紹介します。初期投資を抑えながら安定した収益を得ることができました。詳細は個別にご相談ください。',
+        tags: ['土地活用', '京都', '駐車場'],
+        viewCount: 85,
+      },
+    ],
+  });
+  console.log('✓ SNS posts created');
+
   console.log('\n✅ Seeding complete!\n');
   console.log('=== Test Accounts ===');
   console.log('Admin:     admin@arvana-terra.jp  / password123');

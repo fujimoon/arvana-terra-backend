@@ -6,11 +6,137 @@ import { requireAdmin } from '../middleware/rbac';
 import { asyncHandler } from '../utils/asyncHandler';
 import { AuthenticatedRequest } from '../types';
 import { AppError } from '../middleware/error';
+import { prisma } from '../lib/prisma';
 
 const router = Router();
 
 // All admin routes require authentication + admin role
 router.use(authenticate, requireAdmin);
+
+// User management
+router.get(
+  '/users',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = req.query.search as string | undefined;
+
+    const where = search
+      ? { OR: [{ name: { contains: search } }, { email: { contains: search } }] }
+      : {};
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, email: true, name: true, role: true, phone: true,
+          isActive: true, createdAt: true, updatedAt: true,
+          _count: { select: { properties: true, lands: true } },
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const mapped = users.map((u) => ({
+      id: u.id, email: u.email, name: u.name, role: u.role, phone: u.phone,
+      status: u.isActive ? 'active' : 'suspended',
+      propertiesCount: u._count.properties,
+      landsCount: u._count.lands,
+      createdAt: u.createdAt, updatedAt: u.updatedAt,
+    }));
+
+    res.json({ success: true, data: mapped, total, page, limit, totalPages: Math.ceil(total / limit) });
+  })
+);
+
+router.get(
+  '/users/:id',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, email: true, name: true, role: true, phone: true, createdAt: true, updatedAt: true },
+    });
+    if (!user) throw new AppError('User not found', 404);
+    res.json({ success: true, data: user });
+  })
+);
+
+router.patch(
+  '/users/:id/status',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { status } = req.body;
+    const isActive = status === 'active';
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data: { isActive },
+      select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true, updatedAt: true },
+    });
+    res.json({ success: true, data: { ...user, status: user.isActive ? 'active' : 'suspended' } });
+  })
+);
+
+router.delete(
+  '/users/:id',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    await prisma.user.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'User deleted successfully' });
+  })
+);
+
+// Content management (SNS posts)
+router.get(
+  '/content',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const search = req.query.search as string | undefined;
+    const where = search ? { OR: [{ title: { contains: search } }, { content: { contains: search } }] } : {};
+    const [posts, total] = await Promise.all([
+      prisma.snsPost.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { author: { select: { id: true, name: true, email: true, role: true } } },
+      }),
+      prisma.snsPost.count({ where }),
+    ]);
+    res.json({ success: true, data: posts, total, page, limit, totalPages: Math.ceil(total / limit) });
+  })
+);
+
+router.delete(
+  '/content/:id',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    await prisma.snsPost.delete({ where: { id: req.params.id } });
+    res.json({ success: true, message: 'Post deleted successfully' });
+  })
+);
+
+// Chat oversight
+router.get(
+  '/chats',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const [rooms, total] = await Promise.all([
+      prisma.chatRoom.findMany({
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          participants: { include: { user: { select: { id: true, name: true } } } },
+          _count: { select: { messages: true } },
+        },
+      }),
+      prisma.chatRoom.count(),
+    ]);
+    res.json({ success: true, data: rooms, total, page, limit, totalPages: Math.ceil(total / limit) });
+  })
+);
 
 // Vendor management
 router.get(
