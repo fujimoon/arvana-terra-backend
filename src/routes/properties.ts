@@ -19,15 +19,7 @@ router.get(
   })
 );
 
-router.get(
-  '/:id',
-  asyncHandler(async (req, res: Response) => {
-    const property = await propertyService.getPublicPropertyById(req.params.id);
-    res.json({ success: true, data: property });
-  })
-);
-
-// Private routes
+// Private routes (must be before /:id to avoid /my being matched as an id)
 router.get(
   '/my',
   authenticate,
@@ -44,6 +36,14 @@ router.get(
   requireLandlordOrHomeowner,
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const property = await propertyService.getMyPropertyById(req.params.id, req.user!.userId);
+    res.json({ success: true, data: property });
+  })
+);
+
+router.get(
+  '/:id',
+  asyncHandler(async (req, res: Response) => {
+    const property = await propertyService.getPublicPropertyById(req.params.id);
     res.json({ success: true, data: property });
   })
 );
